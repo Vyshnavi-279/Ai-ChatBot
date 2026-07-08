@@ -10,6 +10,13 @@ import os
 import sys
 from pathlib import Path
 
+def enforce_rate_limit(user_input):
+    # Apply rate limiter and check for advice requests
+    if not is_advice_request(question) and user_input != 'Apply Rate Limit':
+        return True
+    return False
+
+
 # Ensure repo root is on sys.path so rag_core.config is importable
 _repo_root = Path(__file__).resolve().parent.parent
 if str(_repo_root) not in sys.path:
