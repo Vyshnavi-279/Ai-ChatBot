@@ -7,9 +7,12 @@ Run:  streamlit run app.py
 from __future__ import annotations
 
 import sys
+import uuid
 from pathlib import Path
 
 import streamlit as st
+
+from memory import memory_store
 
 # ---------------------------------------------------------------------------
 # Page config — must be the FIRST Streamlit call.
@@ -190,7 +193,7 @@ def _load_rag():
     """Import rag_core modules and return (retrieve_fn, generate_fn, cfg, chunk_count, status)."""
     try:
         from rag_core.retriever import retrieve, _get_collection
-        from rag_core.generation import generate
+        from rag_core.generation import generate, summarize_history
         import rag_core.config as cfg
 
         try:
@@ -200,7 +203,7 @@ def _load_rag():
         except Exception:
             n, status = 0, "❌ ChromaDB unreachable"
 
-        return retrieve, generate, cfg, n, status
+        return retrieve, generate, summarize_history, cfg, n, status
 
     except FileNotFoundError as e:
         st.error(f"Configuration error:\n\n{e}")
@@ -216,7 +219,7 @@ def _load_rag():
         st.stop()
 
 
-retrieve_fn, generate_fn, cfg, chunk_count, index_status = _load_rag()
+retrieve_fn, generate_fn, summarize_fn, cfg, chunk_count, index_status = _load_rag()
 
 # ---------------------------------------------------------------------------
 # Session-state initialisation
@@ -226,6 +229,13 @@ if "history" not in st.session_state:
 
 if "pending_question" not in st.session_state:
     st.session_state.pending_question: str = ""
+
+# Long-term memory (spec.md §12): stable per-session UUID generated on first load.
+if "session_id" not in st.session_state:
+    st.session_state.session_id = str(uuid.uuid4())
+
+if "user_context" not in st.session_state:
+    st.session_state.user_context: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -311,6 +321,29 @@ with st.sidebar:
         index=0,
         help="Restrict retrieval to a single document section.",
     )
+
+    st.markdown("---")
+
+    # Remember me — long-term memory identifier (spec.md §12).
+    remember_me: str = st.text_input(
+        "💾 Remember me",
+        value="",
+        placeholder="e.g. your name or roll number",
+        help=(
+            "Enter the same identifier on your next visit to reload a short "
+            "summary of your previous conversation."
+        ),
+    )
+    memory_key: str = (
+        remember_me.strip() if remember_me.strip() else st.session_state.session_id
+    )
+    if remember_me.strip():
+        stored_summary = memory_store.get_summary(memory_key)
+        if stored_summary:
+            st.session_state.user_context = stored_summary
+            st.caption("✓ Welcome back — your previous context was loaded.")
+        else:
+            st.caption("New identifier — your context will be saved here.")
 
     st.markdown("---")
 
@@ -410,6 +443,7 @@ if user_input.strip():
                     query=query,
                     chunks=chunks,
                     history=st.session_state.history,
+                    user_context=st.session_state.user_context,
                 )
             except Exception as exc:
                 st.error(f"Generation failed: {exc}")
@@ -432,3 +466,14 @@ if user_input.strip():
             "refused": refused,
         }
     )
+
+    # Long-term memory: after every 6 turns, summarize and persist (spec.md §12).
+    turn_count = len(st.session_state.history)
+    if memory_store.should_summarize(turn_count):
+        try:
+            summary = summarize_fn(st.session_state.history)
+            if summary:
+                memory_store.save_summary(memory_key, summary)
+                st.session_state.user_context = summary
+        except Exception:
+            pass  # memory must never break the chat

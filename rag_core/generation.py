@@ -5,11 +5,15 @@
 
 from __future__ import annotations
 
+import json
 import re
 from typing import Optional
 
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
+
+from tools.tool_definitions import TOOL_DEFINITIONS
+from tools.tool_handlers import TOOL_HANDLERS
 
 from rag_core.config import (
     GENERATION_MODEL,
@@ -83,6 +87,13 @@ def _get_llm() -> ChatOpenAI:
     return _llm
 
 
+# Cap for tool-augmented answers (spec: keep max_tokens conservative).
+TOOL_ANSWER_MAX_TOKENS = 512
+
+# Cap for conversation summarization (memory layer).
+SUMMARY_MAX_TOKENS = 150
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -131,6 +142,7 @@ def generate(
     query: str,
     chunks: list[dict],
     history: Optional[list[dict]] = None,
+    user_context: Optional[str] = None,
 ) -> dict:
     """Call the generation LLM and return a structured result.
 
@@ -144,6 +156,9 @@ def generate(
         Conversation history as a list of ``{"role": "user"|"assistant",
         "content": "..."}`` dicts, oldest first.  Pass ``None`` or ``[]``
         for a fresh conversation.
+    user_context:
+        Optional long-term memory summary for a returning user.  When set,
+        it is prepended to the system prompt as "Returning user context".
 
     Returns
     -------
@@ -152,12 +167,17 @@ def generate(
         ``citations`` — list of unique citation strings extracted from answer
         ``refused``   — True if the LLM triggered the refusal instruction
         ``model``     — model name used for generation
+        ``tool_calls`` — list of tool names invoked (empty for pure RAG)
     """
     llm = _get_llm()
     context_block = _build_context_block(chunks)
 
+    system_prompt = SYSTEM_PROMPT
+    if user_context:
+        system_prompt = f"Returning user context: {user_context}\n\n{system_prompt}"
+
     # Build message list: system → history → context-augmented user turn.
-    messages: list = [SystemMessage(content=SYSTEM_PROMPT)]
+    messages: list = [SystemMessage(content=system_prompt)]
 
     for turn in (history or []):
         role = turn.get("role", "")
@@ -174,8 +194,38 @@ def generate(
     )
     messages.append(HumanMessage(content=augmented_query))
 
-    response = llm.invoke(messages)
-    raw_answer: str = response.content.strip()
+    # First pass: let the LLM decide between answering directly (RAG flow)
+    # and requesting one of the structured tools (spec.md §11).
+    llm_with_tools = llm.bind_tools(TOOL_DEFINITIONS)
+    response = llm_with_tools.invoke(messages)
+
+    tool_calls_made: list[str] = []
+    if getattr(response, "tool_calls", None):
+        # Execute each requested tool and feed its structured JSON result
+        # back so the LLM can produce the final natural-language answer
+        # with the tool's data embedded (never its own memory).
+        messages.append(response)
+        for tool_call in response.tool_calls:
+            name = tool_call["name"]
+            args = tool_call.get("args", {}) or {}
+            handler = TOOL_HANDLERS.get(name)
+            if handler is None:
+                result = {"error": f"unknown tool: {name}"}
+            else:
+                try:
+                    result = handler(**args)
+                except Exception as exc:  # tool failure must not crash the chat
+                    result = {"error": f"tool {name} failed: {exc}"}
+            tool_calls_made.append(name)
+            messages.append(
+                ToolMessage(content=json.dumps(result), tool_call_id=tool_call["id"])
+            )
+
+        final_llm = llm.bind(max_tokens=TOOL_ANSWER_MAX_TOKENS)
+        response = final_llm.invoke(messages)
+
+    # No tool requested → response already holds the standard RAG answer.
+    raw_answer: str = (response.content or "").strip()
 
     answer, citations = _extract_citations(raw_answer)
     refused = _is_refusal(answer)
@@ -185,4 +235,32 @@ def generate(
         "citations": citations,
         "refused": refused,
         "model": GENERATION_MODEL,
+        "tool_calls": tool_calls_made,
     }
+
+
+# ---------------------------------------------------------------------------
+# Long-term memory summarization (spec.md §12)
+# ---------------------------------------------------------------------------
+
+def summarize_history(history: list[dict]) -> str:
+    """Summarize a conversation into a short fact list for long-term memory.
+
+    Uses a short, cheap prompt with a small token cap so repeated
+    summarization stays inexpensive.
+    """
+    transcript = "\n".join(
+        f"{turn.get('role', '')}: {turn.get('content', '')}"
+        for turn in history
+        if turn.get("role") in ("user", "assistant")
+    )
+    prompt = (
+        "Summarize this college-chatbot conversation into a short fact list "
+        "about the user's interests (e.g. 'interested in CSE admissions, "
+        "asked about hostel fees twice'). Max 3 bullet points. Do not include "
+        "phone numbers, emails, or other personal identifiers.\n\n"
+        f"{transcript}"
+    )
+    llm = _get_llm().bind(max_tokens=SUMMARY_MAX_TOKENS)
+    response = llm.invoke([HumanMessage(content=prompt)])
+    return (response.content or "").strip()

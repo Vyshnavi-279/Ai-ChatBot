@@ -1,0 +1,37 @@
+{
+  "source": "data/college_info.docx — Admissions section",
+  "note": "The Admissions section describes the process but gives no fixed dates: the complete schedule is announced by TSCHE. Placeholders are kept until official dates are added — do not invent dates.",
+  "deadlines": [
+    {
+      "program": "B.Tech (Category A)",
+      "deadline": null,
+      "process": "Category A seats are filled by the Convener, TSEAMCET Admissions. Apply online through Convener-TSEAMCET after the TSEAMCET notification is released.",
+      "note": "not available — complete schedule is given by TSCHE"
+    },
+    {
+      "program": "B.Tech (Category B)",
+      "deadline": null,
+      "process": "Category B seats are filled by the college per TSCHE guidelines. Apply through the college website; the form appears in the Admissions tab when TSCHE gives the notification.",
+      "note": "not available — complete schedule is given by TSCHE"
+    },
+    {
+      "program": "M.Tech (Data Sciences)",
+      "deadline": null,
+      "process": null,
+      "note": "not available"
+    },
+    {
+      "program": "M.Tech (VLSI Design)",
+      "deadline": null,
+      "process": null,
+      "note": "not available"
+    },
+    {
+      "program": "M.Tech (CSE)",
+      "deadline": null,
+      "process": null,
+      "note": "not available"
+    }
+  ],
+  "eligibility": "10+2 with MPC as major subjects; selection via TS EAMCET."
+}
