@@ -43,8 +43,16 @@ OPENROUTER_BASE_URL: str = os.environ.get(
 EMBEDDING_MODEL: str = os.environ.get(
     "EMBEDDING_MODEL", "openai/text-embedding-3-small"
 )
+
+# Chatbot generation model (spec section 3)
 GENERATION_MODEL: str = os.environ.get(
     "GENERATION_MODEL", "openai/gpt-4o-mini"
+)
+
+# LLM-as-judge model (spec section 8: must differ from GENERATION_MODEL
+# to avoid self-bias in evaluation)
+JUDGE_MODEL: str = os.environ.get(
+    "JUDGE_MODEL", "deepseek/deepseek-chat"
 )
 
 # ---------------------------------------------------------------------------

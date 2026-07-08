@@ -2,8 +2,11 @@
 # One-time (idempotent) ingestion pipeline:
 #   data/college_info.docx → chunks → embeddings → ChromaDB
 #
-# Running this script a second time will NOT duplicate the index — it
-# detects an already-populated collection and exits early.
+# Section metadata is assigned by reading the document's Heading 1 styles —
+# NOT by scanning body text for keywords, which mis-labels chunks whenever
+# a heading word (e.g. "Faculty") appears inside paragraph content.
+#
+# Running this script a second time will NOT duplicate the index.
 #
 # Usage:
 #   python ingest.py
@@ -11,14 +14,10 @@
 from __future__ import annotations
 
 import hashlib
-import os
 import sys
 from pathlib import Path
 
-# ---------------------------------------------------------------------------
-# Config must be imported first so .env is loaded before any other module
-# tries to read env vars.
-# ---------------------------------------------------------------------------
+# Config must be imported first so .env is loaded before anything else.
 from rag_core.config import (
     CHUNK_OVERLAP,
     CHUNK_SIZE,
@@ -33,44 +32,29 @@ from rag_core.config import (
 
 import chromadb
 from chromadb.config import Settings
-from langchain_community.document_loaders import Docx2txtLoader
+from docx import Document
 from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 
 # ---------------------------------------------------------------------------
-# Section-heading detection helpers
+# Document loading — walk paragraphs, track Heading 1 as section boundary
 # ---------------------------------------------------------------------------
 
-def _detect_section(text: str, current_section: str) -> str:
-    """Return the section heading that *text* belongs to.
-
-    Scans the text for the presence of one of the 8 canonical headings and
-    returns it.  If none matches, the *current_section* is carried forward
-    (chunks inherit the last-seen heading).
-    """
+def _normalise_heading(text: str) -> str:
+    """Return the canonical section name if *text* matches one, else ''."""
+    t = text.strip()
     for heading in SECTION_HEADINGS:
-        if heading.lower() in text.lower():
+        if heading.lower() == t.lower():
             return heading
-    return current_section
+    return ""
 
 
-def _approximate_page(char_offset: int, chars_per_page: int = 3000) -> int:
-    """Rough page estimate based on character offset within the document."""
-    return max(1, (char_offset // chars_per_page) + 1)
+def load_sections(docx_path: str) -> dict[str, str]:
+    """Parse the docx and return {section_name: full_text_of_section}.
 
-
-# ---------------------------------------------------------------------------
-# Chunking
-# ---------------------------------------------------------------------------
-
-def load_and_chunk(docx_path: str) -> list[dict]:
-    """Load the docx, split into chunks, attach metadata.
-
-    Returns a list of dicts:
-        text     — chunk text
-        metadata — {source, section, page}
-        id       — stable SHA-256 content hash (for idempotent upsert)
+    Uses python-docx to walk paragraphs so Heading 1 styles are the
+    authoritative section boundaries — no substring guessing.
     """
     path = Path(docx_path)
     if not path.exists():
@@ -78,55 +62,83 @@ def load_and_chunk(docx_path: str) -> list[dict]:
         sys.exit(1)
 
     print(f"[ingest] Loading {path} …")
-    loader = Docx2txtLoader(str(path))
-    raw_docs = loader.load()                 # returns list[Document]
-    full_text = "\n".join(d.page_content for d in raw_docs)
+    doc = Document(str(path))
 
-    # Primary separators: the 8 section headings; fallback to standard splitter separators.
-    heading_separators = [f"\n{h}" for h in SECTION_HEADINGS] + [
-        "\n\n", "\n", ". ", " ", ""
-    ]
+    sections: dict[str, list[str]] = {h: [] for h in SECTION_HEADINGS}
+    current_section: str = ""
 
+    for para in doc.paragraphs:
+        text = para.text.strip()
+        if not text:
+            continue
+
+        style = para.style.name  # e.g. "Heading 1", "Normal", "List Bullet"
+
+        if style == "Heading 1":
+            canonical = _normalise_heading(text)
+            if canonical:
+                current_section = canonical
+            # Don't add the heading itself as content
+            continue
+
+        if current_section:
+            sections[current_section].append(text)
+
+    # Join each section's paragraphs into a single text block
+    return {sec: "\n\n".join(paras) for sec, paras in sections.items() if paras}
+
+
+# ---------------------------------------------------------------------------
+# Chunking — split each section independently so chunks never cross sections
+# ---------------------------------------------------------------------------
+
+def _approximate_page(char_offset: int, chars_per_page: int = 3000) -> int:
+    return max(1, (char_offset // chars_per_page) + 1)
+
+
+def chunk_sections(sections: dict[str, str], source_filename: str) -> list[dict]:
+    """Split each section's text into overlapping chunks with exact metadata."""
     splitter = RecursiveCharacterTextSplitter(
-        separators=heading_separators,
+        separators=["\n\n", "\n", ". ", " ", ""],
         chunk_size=CHUNK_SIZE,
         chunk_overlap=CHUNK_OVERLAP,
         length_function=len,
     )
 
-    raw_chunks = splitter.split_text(full_text)
-    print(f"[ingest] Split into {len(raw_chunks)} raw chunks.")
+    all_chunks: list[dict] = []
+    global_idx = 0
 
-    # Assign section and page metadata to each chunk.
-    chunks: list[dict] = []
-    current_section = "About BVRIT"   # default for content before first heading
-    char_offset = 0
+    for section in SECTION_HEADINGS:
+        text = sections.get(section, "")
+        if not text:
+            print(f"[ingest]   {section:<25} — no content, skipping")
+            continue
 
-    for idx, chunk_text in enumerate(raw_chunks):
-        current_section = _detect_section(chunk_text, current_section)
-        page = _approximate_page(char_offset)
-        char_offset += len(chunk_text)
+        raw = splitter.split_text(text)
+        char_offset = 0
 
-        # ID = positional index + content hash prefix.
-        # Using the index as the primary component guarantees uniqueness even
-        # when two chunks happen to share identical text (e.g. repeated nav
-        # paragraphs scraped from multiple pages).
-        content_hash = hashlib.sha256(chunk_text.encode()).hexdigest()[:16]
-        chunk_id = f"{idx:05d}-{content_hash}"
+        for chunk_text in raw:
+            page = _approximate_page(char_offset)
+            char_offset += len(chunk_text)
 
-        chunks.append(
-            {
+            # ID = global index + content hash → always unique, stable on re-run
+            content_hash = hashlib.sha256(chunk_text.encode()).hexdigest()[:16]
+            chunk_id = f"{global_idx:05d}-{content_hash}"
+            global_idx += 1
+
+            all_chunks.append({
                 "id": chunk_id,
                 "text": chunk_text,
                 "metadata": {
-                    "source": path.name,
-                    "section": current_section,
+                    "source": source_filename,
+                    "section": section,   # ← always the Heading 1, never guessed
                     "page": page,
                 },
-            }
-        )
+            })
 
-    return chunks
+        print(f"[ingest]   {section:<25} → {len(raw)} chunks")
+
+    return all_chunks
 
 
 # ---------------------------------------------------------------------------
@@ -134,10 +146,6 @@ def load_and_chunk(docx_path: str) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 def persist_to_chroma(chunks: list[dict]) -> None:
-    """Embed chunks and upsert into ChromaDB.
-
-    Uses ``upsert`` (keyed on SHA-256 id) so re-running never duplicates.
-    """
     client = chromadb.PersistentClient(
         path=CHROMA_PERSIST_DIR,
         settings=Settings(anonymized_telemetry=False),
@@ -147,17 +155,16 @@ def persist_to_chroma(chunks: list[dict]) -> None:
         metadata={"hnsw:space": "cosine"},
     )
 
-    # Idempotency check: if the collection already has documents, bail out.
     existing_count = collection.count()
     if existing_count > 0:
         print(
             f"[ingest] Collection '{CHROMA_COLLECTION_NAME}' already contains "
-            f"{existing_count} chunks — skipping ingestion to avoid duplicates.\n"
-            "         Delete ./chroma_db/ and re-run to rebuild the index from scratch."
+            f"{existing_count} chunks — skipping to avoid duplicates.\n"
+            "         Delete ./chroma_db/ and re-run to rebuild from scratch."
         )
         return
 
-    print(f"[ingest] Embedding {len(chunks)} chunks via {EMBEDDING_MODEL} …")
+    print(f"\n[ingest] Embedding {len(chunks)} chunks via {EMBEDDING_MODEL} …")
 
     embedder = OpenAIEmbeddings(
         model=EMBEDDING_MODEL,
@@ -165,15 +172,11 @@ def persist_to_chroma(chunks: list[dict]) -> None:
         openai_api_base=OPENROUTER_BASE_URL,
     )
 
-    # Embed in batches of 64 to stay within rate limits.
     BATCH = 64
-    all_ids: list[str] = []
-    all_texts: list[str] = []
-    all_embeddings: list[list[float]] = []
-    all_metadatas: list[dict] = []
+    all_ids, all_texts, all_embeddings, all_metadatas = [], [], [], []
 
     for i in range(0, len(chunks), BATCH):
-        batch = chunks[i : i + BATCH]
+        batch = chunks[i: i + BATCH]
         texts = [c["text"] for c in batch]
         batch_embeddings = embedder.embed_documents(texts)
 
@@ -192,7 +195,7 @@ def persist_to_chroma(chunks: list[dict]) -> None:
     )
 
     final_count = collection.count()
-    print(f"\n[ingest] ✓ Ingestion complete. Total chunks in index: {final_count}")
+    print(f"\n[ingest] ✓ Done. Total chunks in index: {final_count}")
 
 
 # ---------------------------------------------------------------------------
@@ -200,5 +203,8 @@ def persist_to_chroma(chunks: list[dict]) -> None:
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    chunks = load_and_chunk(DOCX_PATH)
+    path = Path(DOCX_PATH)
+    sections = load_sections(DOCX_PATH)
+    chunks = chunk_sections(sections, path.name)
+    print(f"\n[ingest] Total chunks to index: {len(chunks)}")
     persist_to_chroma(chunks)

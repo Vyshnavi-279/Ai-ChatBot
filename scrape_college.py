@@ -174,9 +174,31 @@ def _is_noise(text: str) -> bool:
     return any(re.match(p, low) for p in noise_patterns)
 
 
+def _extract_table_content(soup: BeautifulSoup) -> list[str]:
+    """Convert HTML tables into readable text rows.
+
+    Each table is rendered as a header row followed by data rows, e.g.:
+      'Branch | Tuition Fee | NBA Fee | JNTUH/Misc. Fee'
+      'CSE | 120000 | 3000 | 5500'
+    This ensures table data (fee schedules, intake numbers, placement stats)
+    is captured as searchable text rather than silently dropped.
+    """
+    rows_out: list[str] = []
+    for table in soup.find_all("table"):
+        table_rows: list[str] = []
+        for tr in table.find_all("tr"):
+            cells = [td.get_text(separator=" ", strip=True) for td in tr.find_all(["th", "td"])]
+            cells = [_clean(c) for c in cells if c.strip()]
+            if cells:
+                table_rows.append(" | ".join(cells))
+        if table_rows:
+            rows_out.extend(table_rows)
+    return rows_out
+
+
 def _extract_page_content(soup: BeautifulSoup, url: str) -> list[str]:
     """
-    Extract factual paragraphs from a page.
+    Extract factual paragraphs and table rows from a page.
     - Removes nav, header, footer, scripts, sidebars.
     - Returns a list of clean, non-empty text paragraphs.
     """
@@ -200,12 +222,19 @@ def _extract_page_content(soup: BeautifulSoup, url: str) -> list[str]:
     paragraphs: list[str] = []
     seen: set[str] = set()
 
-    for el in main.find_all(["p", "li", "td", "th", "h2", "h3", "h4"]):
+    # Extract table rows first (fee tables, intake tables, placement tables)
+    for row_text in _extract_table_content(main):
+        key = re.sub(r"\s+", " ", row_text.lower())
+        if key not in seen and not _is_noise(row_text):
+            seen.add(key)
+            paragraphs.append(row_text)
+
+    # Then extract paragraphs / list items / headings
+    for el in main.find_all(["p", "li", "h2", "h3", "h4"]):
         raw = el.get_text(separator=" ", strip=True)
         cleaned = _clean(raw)
         if not cleaned or _is_noise(cleaned):
             continue
-        # Deduplicate
         key = re.sub(r"\s+", " ", cleaned.lower())
         if key in seen:
             continue
