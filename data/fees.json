@@ -1,0 +1,57 @@
+{
+  "currency": "INR",
+  "source": "data/college_info.docx — Fee Structure section",
+  "note": "The Fee Structure section of the knowledge document does not list tuition amounts by branch. Placeholders are kept until official figures are added — do not invent numbers.",
+  "tuition_by_branch": [
+    {
+      "branch": "CSE",
+      "program": "B.Tech Computer Science and Engineering",
+      "amount": null,
+      "note": "not available"
+    },
+    {
+      "branch": "CSE (AI&ML)",
+      "program": "B.Tech Computer Science and Engineering (Artificial Intelligence & Machine Learning)",
+      "amount": null,
+      "note": "not available"
+    },
+    {
+      "branch": "ECE",
+      "program": "B.Tech Electronics and Communication Engineering",
+      "amount": null,
+      "note": "not available"
+    },
+    {
+      "branch": "EEE",
+      "program": "B.Tech Electrical and Electronics Engineering",
+      "amount": null,
+      "note": "not available"
+    },
+    {
+      "branch": "M.Tech (Data Sciences)",
+      "program": "M.Tech Data Sciences",
+      "amount": null,
+      "note": "not available"
+    },
+    {
+      "branch": "M.Tech (VLSI Design)",
+      "program": "M.Tech VLSI Design",
+      "amount": null,
+      "note": "not available"
+    },
+    {
+      "branch": "M.Tech (CSE)",
+      "program": "M.Tech Computer Science and Engineering",
+      "amount": null,
+      "note": "not available"
+    }
+  ],
+  "hostel_fees": {
+    "amount": null,
+    "note": "not available — the Fee Structure section describes hostel facilities (4 blocks, 150+ rooms, 500+ occupancy) but lists no fee amounts"
+  },
+  "scholarships": {
+    "details": null,
+    "note": "not available"
+  }
+}

@@ -3,4 +3,6 @@ __pycache__/
 *.pyc
 .env
 chroma_db/
+memory.db
+observability/events.log
 .streamlit/secrets.toml
