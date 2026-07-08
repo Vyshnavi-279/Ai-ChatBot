@@ -176,3 +176,67 @@ Total: 20 test cases minimum.
 - [ ] Test suite run against live chatbot with LLM-as-judge scoring
 - [ ] Evaluation dashboard shows pass/fail per dimension, RAGAS scores, weakest dimension, fix recommendation
 - [ ] Light-theme UI applied (no dark theme, no stark white)
+# spec_addendum.md — Phase 2: Tools, Memory, Observability, Governance
+
+Append this to the end of your existing spec.md (same repo root file — don't
+create a second spec file, just merge these sections in as 11–15).
+
+---
+
+## 11. Function Calling (Tools)
+
+The LLM should call structured tools instead of relying on retrieval+
+generation for anything that's a precise lookup, not a fuzzy question.
+
+| Tool | Purpose | Data source |
+|---|---|---|
+| `get_fee_by_branch(branch)` | Exact fee for a branch | `data/fees.json` (structured, not chunked prose) |
+| `get_admission_deadline(program)` | Exact deadline | `data/deadlines.json` |
+| `log_unanswered_question(question)` | Records a gap in the knowledge base | writes to observability log |
+| `escalate_to_contact(reason)` | Returns official contact info + logs the escalation | `data/college_info.docx` Contact section + observability log |
+
+Rules:
+- Tools return **structured JSON data**, never free text — the LLM formats the final answer, but the number/date itself comes from the tool, not the LLM's memory. This eliminates hallucinated fees/dates.
+- If a tool has no matching entry (e.g. unknown branch), it must return a clear "not found" result, not guess.
+- Every tool call gets logged (see section 13) regardless of outcome.
+
+## 12. Memory
+
+Two layers — keep them separate, don't conflate:
+
+**Short-term (session):** already exists via `st.session_state` — the current conversation thread. No change needed.
+
+**Long-term (persistent across visits):** a local SQLite database `memory.db` keyed by a `session_id`.
+- On first visit, generate a `session_id` (UUID) and store it in `st.session_state`; offer a simple "Remember me" text field (e.g. name or roll number) so a returning user can re-enter it and reload their history.
+- After every N turns (default 6), summarize the conversation into a short fact list via LLM (e.g. "interested in CSE admissions, asked about hostel fees twice") and store that summary instead of the full transcript — keeps the DB small and keeps context-injection cheap.
+- On a returning session, prepend the stored summary to the system prompt as context ("Returning user context: ...") so the bot can say things like "Last time you asked about CSE — here's an update."
+- Never store raw phone numbers, emails, or other PII a user might type — redact before storing (ties into governance, section 14).
+
+## 13. Observability
+
+Every request — RAG or tool-call — gets one row in `observability.db` (SQLite) with: timestamp, session_id, question (redacted), dimension/tool used, retrieved chunk IDs, model name, input/output token counts, latency_seconds, refused (bool), error (nullable text).
+
+A new Streamlit page `pages/2_Observability_Dashboard.py` shows:
+- Requests over time (line chart)
+- Average latency, p95 latency
+- Estimated token cost today / this week (using per-model $/1K token rates you configure)
+- Refusal rate over time
+- Top 10 most-asked questions
+- Recent errors table
+
+## 14. Governance
+
+A guardrail layer that runs **before** any answer is shown to the user:
+- Blocks/rewords requests for medical, legal, or financial *advice* (as opposed to factual college fee info, which is fine) — reuses the Safety dimension criteria from section 8.
+- Redacts PII (phone numbers, emails, ID numbers) found in user input before it's logged or stored in memory.
+- Rate limiting: max N questions per session per minute (default 10) to prevent abuse/runaway costs — reject politely with a cooldown message, don't crash.
+- Admin panel: a password-gated sidebar section (password from `.env`, never hardcoded) that can view/export the observability log as CSV and flip a "maintenance mode" kill switch that makes the bot show a static "temporarily unavailable" message instead of calling the LLM at all.
+
+## 15. UI Polish Pass (final beautification)
+
+After all of the above works functionally, do one dedicated visual pass:
+- Consistent spacing scale (8px grid) across chat, sidebar, and dashboard pages
+- Subtle micro-interactions: hover states on buttons/chips, a typing indicator while the bot is generating
+- Icons (from a lightweight icon set, not custom images) next to sidebar sections: knowledge base, settings, memory, admin
+- Empty/loading/error states all styled consistently with spec.md section 7's palette — no raw Streamlit default red error boxes
+- Mobile-reasonable layout (sidebar collapses cleanly on narrow widths — Streamlit handles most of this natively, just verify)
