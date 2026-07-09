@@ -501,6 +501,19 @@ with st.sidebar:
 
     st.markdown("---")
 
+    # Memory / Remember-me section
+    st.markdown(
+        '<div class="sidebar-section">\U0001f9e0 Memory</div>',
+        unsafe_allow_html=True,
+    )
+    if "session_id" in st.session_state:
+        st.markdown(
+            f"<div class='kb-card'><b>Session</b><br>"
+            f"\U0001f511 ID: <code style='font-size:0.75rem;'>{st.session_state.session_id[:8]}...</code><br>"
+            f"\U0001f4ac Turns: <b>{len(st.session_state.history) // 2}</b></div>",
+            unsafe_allow_html=True,
+        )
+
     # Clear conversation
     if st.button("\U0001f5d1\ufe0f Clear conversation", use_container_width=True):
         st.session_state.history = []
