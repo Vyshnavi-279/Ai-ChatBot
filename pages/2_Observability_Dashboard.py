@@ -3,7 +3,7 @@ pages/2_Observability_Dashboard.py — Streamlit multipage dashboard.
 
 Shows requests-over-time, latency metrics, cost calculator, refusal rate,
 top-10 questions, and recent errors — all styled with the spec.md section 7
-light theme.
+light theme (8px grid, hover states, custom alerts).
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------------------------
-# Inject light-theme CSS (spec.md §7 colours).
+# Inject light-theme CSS (spec.md §7) — 8px grid, hover states, custom alerts.
 # ---------------------------------------------------------------------------
 st.markdown(
     """
@@ -36,22 +36,144 @@ st.markdown(
   --surface:     #FFFFFF;
   --primary:     #3D5A80;
   --accent:      #98C1D9;
+  --accent-tint: #EAF4FA;
   --success:     #6A994E;
   --warning:     #E09F3E;
   --error:       #BC4749;
   --text:        #293241;
   --border:      #E4E0D8;
 }
-.stApp { background-color: var(--bg) !important; color: var(--text) !important; }
+
+/* ── App background ── */
+.stApp {
+  background-color: var(--bg) !important;
+  color: var(--text) !important;
+}
+
+/* ── Sidebar — 8px grid ── */
+[data-testid="stSidebar"] {
+  background-color: var(--sidebar-bg) !important;
+  padding: 24px 16px !important;
+}
+
+/* ── 8px grid spacing ── */
+.block-container {
+  padding: 32px 24px !important;
+  max-width: 960px;
+}
+
+/* ── Typography ── */
 h1, h2, h3 { color: var(--primary) !important; }
-[data-testid="stSidebar"] { background-color: var(--sidebar-bg) !important; }
+h1 { margin-bottom: 8px !important; }
+h2 { margin-bottom: 8px !important; }
+h3 { margin-bottom: 8px !important; }
+
+/* ── Buttons — hover states ── */
 .stButton > button {
   background-color: var(--primary) !important;
   color: #fff !important;
   border: none !important;
   border-radius: 8px !important;
+  padding: 8px 16px !important;
+  font-size: 0.88rem !important;
+  transition: all 0.2s ease-in-out !important;
 }
-.block-container { padding-top: 1.4rem !important; }
+.stButton > button:hover {
+  background-color: #293241 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.10);
+}
+
+/* ── Metric cards ── */
+.metric-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  transition: all 0.2s ease;
+  margin-bottom: 16px;
+}
+.metric-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.10);
+}
+
+/* ── Cards ── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+
+/* ── Custom alert boxes (replace st.error, st.warning, st.info) ── */
+.custom-error {
+  background: #fce8e8;
+  border: 1px solid var(--error);
+  border-left: 4px solid var(--error);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin: 16px 0;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+.custom-warning {
+  background: #fef5e7;
+  border: 1px solid var(--warning);
+  border-left: 4px solid var(--warning);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin: 16px 0;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+.custom-success {
+  background: #eaf7e6;
+  border: 1px solid var(--success);
+  border-left: 4px solid var(--success);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin: 16px 0;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+/* ── Dataframe styling ── */
+[data-testid="stDataFrame"] {
+  background: var(--surface) !important;
+  border-radius: 8px !important;
+  border: 1px solid var(--border) !important;
+}
+
+/* ── Sidebar hover items ── */
+.sidebar-section {
+  padding: 8px 12px;
+  margin: 4px 0;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  cursor: default;
+}
+.sidebar-section:hover {
+  background: rgba(152, 193, 217, 0.15);
+}
+
+/* ── Hide default Streamlit chrome ── */
+#MainMenu, footer, header { visibility: hidden; }
+hr {
+  border-color: var(--border) !important;
+  margin: 16px 0 !important;
+}
+
+/* ── Responsive narrow width ── */
+@media (max-width: 768px) {
+  .block-container { padding: 16px !important; }
+  [data-testid="stSidebar"] { padding: 16px 12px !important; }
+  .metric-card { padding: 12px !important; }
+}
 </style>
 """,
     unsafe_allow_html=True,
@@ -92,7 +214,10 @@ def _load_data() -> pd.DataFrame:
         df["refused"] = pd.to_numeric(df["refused"], errors="coerce").fillna(0).astype(int)
         return df
     except Exception as e:
-        st.error(f"Could not load observability data: {e}")
+        st.markdown(
+            f"<div class='custom-error'>Could not load observability data: {e}</div>",
+            unsafe_allow_html=True,
+        )
         return pd.DataFrame()
 
 
@@ -103,7 +228,7 @@ df = _load_data()
 # ---------------------------------------------------------------------------
 st.title("📊 Observability Dashboard")
 st.markdown(
-    "<p style='color:var(--text);font-size:0.95rem;'>"
+    "<p style='color:var(--text);font-size:0.95rem;margin-bottom:24px;'>"
     "Request-level metrics, latency, costs, and errors.</p>",
     unsafe_allow_html=True,
 )
@@ -146,7 +271,10 @@ with st.sidebar:
 # Compute derived metrics
 # ---------------------------------------------------------------------------
 if df.empty:
-    st.info("No observability data yet. Start chatting to generate logs.")
+    st.markdown(
+        "<div class='custom-warning'>No observability data yet. Start chatting to generate logs.</div>",
+        unsafe_allow_html=True,
+    )
     st.stop()
 
 # Cost calculations.
@@ -170,11 +298,36 @@ refusal_rate = df["refused"].mean() * 100 if total_requests > 0 else 0.0
 # Row 1 — Key metrics
 # ---------------------------------------------------------------------------
 col1, col2, col3, col4, col5 = st.columns(5)
-col1.metric("📦 Total Requests", f"{total_requests:,}")
-col2.metric("⚡ Avg Latency", f"{avg_latency:.2f}s")
-col3.metric("📈 P95 Latency", f"{p95_latency:.2f}s")
-col4.metric("🚫 Refusal Rate", f"{refusal_rate:.1f}%")
-col5.metric("💰 Cost Today", f"${total_cost_today:.4f}")
+with col1:
+    st.markdown(
+        f"<div class='metric-card'><h3 style='margin:0;font-size:1.5rem;'>{total_requests:,}</h3>"
+        f"<p style='margin:0;font-size:0.8rem;color:var(--text);'>Total Requests</p></div>",
+        unsafe_allow_html=True,
+    )
+with col2:
+    st.markdown(
+        f"<div class='metric-card'><h3 style='margin:0;font-size:1.5rem;'>{avg_latency:.2f}s</h3>"
+        f"<p style='margin:0;font-size:0.8rem;color:var(--text);'>Avg Latency</p></div>",
+        unsafe_allow_html=True,
+    )
+with col3:
+    st.markdown(
+        f"<div class='metric-card'><h3 style='margin:0;font-size:1.5rem;'>{p95_latency:.2f}s</h3>"
+        f"<p style='margin:0;font-size:0.8rem;color:var(--text);'>P95 Latency</p></div>",
+        unsafe_allow_html=True,
+    )
+with col4:
+    st.markdown(
+        f"<div class='metric-card'><h3 style='margin:0;font-size:1.5rem;color:var(--error);'>{refusal_rate:.1f}%</h3>"
+        f"<p style='margin:0;font-size:0.8rem;color:var(--text);'>Refusal Rate</p></div>",
+        unsafe_allow_html=True,
+    )
+with col5:
+    st.markdown(
+        f"<div class='metric-card'><h3 style='margin:0;font-size:1.5rem;'>${total_cost_today:.4f}</h3>"
+        f"<p style='margin:0;font-size:0.8rem;color:var(--text);'>Cost Today</p></div>",
+        unsafe_allow_html=True,
+    )
 
 st.markdown("---")
 
@@ -184,7 +337,6 @@ st.markdown("---")
 st.subheader("📈 Requests Over Time")
 df_time = df.set_index("timestamp").sort_index()
 if not df_time.empty:
-    # Resample by hour (or minute for sparse data).
     if len(df_time) > 50:
         requests_per_hour = df_time.resample("1h").size()
     else:
@@ -201,10 +353,14 @@ if not df_time.empty:
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font_color="#293241",
+        margin=dict(l=0, r=0, t=0, b=0),
     )
     st.plotly_chart(fig_reqs, use_container_width=True)
 else:
-    st.info("Not enough data to plot requests over time.")
+    st.markdown(
+        "<div class='custom-warning'>Not enough data to plot requests over time.</div>",
+        unsafe_allow_html=True,
+    )
 
 st.markdown("---")
 
@@ -228,16 +384,23 @@ with col_left:
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="rgba(0,0,0,0)",
             font_color="#293241",
+            margin=dict(l=0, r=0, t=0, b=0),
         )
         st.plotly_chart(fig_refusal, use_container_width=True)
     else:
-        st.info("Not enough data to plot refusal rate.")
+        st.markdown(
+            "<div class='custom-warning'>Not enough data to plot refusal rate.</div>",
+            unsafe_allow_html=True,
+        )
 
 with col_right:
     st.subheader("💰 Estimated Token Costs")
-    st.metric("Cost Today", f"${total_cost_today:.4f}")
-    st.metric("Cost This Week", f"${total_cost_this_week:.4f}")
-    st.metric("Avg Cost Per Request", f"${(df['cost'].mean()):.6f}" if total_requests > 0 else "$0")
+    st.markdown(
+        f"<div class='card'><b>Cost Today:</b> ${total_cost_today:.4f}<br>"
+        f"<b>Cost This Week:</b> ${total_cost_this_week:.4f}<br>"
+        f"<b>Avg Cost Per Request:</b> ${(df['cost'].mean()):.6f}</div>",
+        unsafe_allow_html=True,
+    )
 
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -271,7 +434,10 @@ if not df.empty and "question" in df.columns:
     )
     st.dataframe(top_questions, hide_index=True, use_container_width=True)
 else:
-    st.info("No questions logged yet.")
+    st.markdown(
+        "<div class='custom-warning'>No questions logged yet.</div>",
+        unsafe_allow_html=True,
+    )
 
 st.markdown("---")
 
@@ -284,13 +450,17 @@ try:
     errors = fetch_recent_errors(limit=20)
     if errors:
         err_df = pd.DataFrame(errors)
+        cols = [c for c in ["timestamp", "session_id", "question", "dimension_or_tool", "error"] if c in err_df.columns]
         st.dataframe(
-            err_df[["timestamp", "session_id", "question", "dimension_or_tool", "error"]],
+            err_df[cols],
             hide_index=True,
             use_container_width=True,
         )
     else:
-        st.success("No errors recorded!")
+        st.markdown(
+            "<div class='custom-success'>No errors recorded!</div>",
+            unsafe_allow_html=True,
+        )
 except Exception:
     # Fallback: filter the main DataFrame.
     err_df = df[df["error"].notna() & (df["error"] != "")].head(20)
@@ -298,7 +468,10 @@ except Exception:
         cols = [c for c in ["timestamp", "session_id", "question", "dimension_or_tool", "error"] if c in err_df.columns]
         st.dataframe(err_df[cols], hide_index=True, use_container_width=True)
     else:
-        st.success("No errors recorded!")
+        st.markdown(
+            "<div class='custom-success'>No errors recorded!</div>",
+            unsafe_allow_html=True,
+        )
 
 st.markdown("---")
 

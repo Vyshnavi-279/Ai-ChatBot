@@ -29,7 +29,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------------------------
-# CSS — spec.md section 7 color tokens, full light theme.
+# CSS — spec.md section 7 color tokens, full light theme, 8px grid, etc.
 # ---------------------------------------------------------------------------
 st.markdown(
     """
@@ -52,9 +52,10 @@ st.markdown(
 /* ── App background ── */
 .stApp { background-color: var(--bg) !important; color: var(--text) !important; }
 
-/* ── Sidebar ── */
+/* ── Sidebar — 8px grid ── */
 [data-testid="stSidebar"] {
   background-color: var(--sidebar-bg) !important;
+  padding: 24px 16px !important;
 }
 [data-testid="stSidebar"] .stMarkdown,
 [data-testid="stSidebar"] label,
@@ -63,19 +64,37 @@ st.markdown(
   color: var(--text) !important;
 }
 
-/* ── Block container (main column) ── */
+/* ── Sidebar nav items / section headers — hover state ── */
+.sidebar-section {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  margin: 4px 0;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  cursor: default;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--primary);
+}
+.sidebar-section:hover {
+  background: rgba(152, 193, 217, 0.15);
+}
+
+/* ── Block container — 8px grid spacing ── */
 .block-container {
-  padding-top: 1.4rem !important;
+  padding: 32px 24px !important;
   max-width: 860px;
 }
 
-/* ── Chat bubbles ── */
+/* ── Chat bubbles — 8px grid ── */
 [data-testid="stChatMessage"] {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 0.85rem 1.1rem;
-  margin-bottom: 0.55rem;
+  padding: 12px 16px;
+  margin-bottom: 8px;
   box-shadow: 0 1px 5px rgba(0,0,0,0.06);
 }
 
@@ -87,34 +106,44 @@ st.markdown(
 
 /* ── Typography ── */
 h1, h2, h3 { color: var(--primary) !important; }
+h1 { margin-bottom: 8px !important; }
+h2 { margin-bottom: 8px !important; }
+h3 { margin-bottom: 8px !important; }
 
-/* ── Primary action buttons ── */
+/* ── Primary action buttons — hover states ── */
 .stButton > button {
   background-color: var(--primary) !important;
   color: #fff !important;
   border: none !important;
   border-radius: 8px !important;
-  padding: 0.38rem 1rem !important;
+  padding: 8px 16px !important;
   font-size: 0.88rem !important;
-  transition: opacity 0.15s;
+  transition: all 0.2s ease-in-out !important;
 }
-.stButton > button:hover { opacity: 0.85 !important; }
+.stButton > button:hover {
+  background-color: #293241 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.10);
+}
 
-/* ── Example-question chip buttons ── */
+/* ── Example-question chip buttons — hover states ── */
 .chip-btn > button {
   background-color: var(--accent-tint) !important;
   color: var(--primary) !important;
   border: 1px solid var(--accent) !important;
   border-radius: 20px !important;
   font-size: 0.82rem !important;
-  padding: 0.28rem 0.85rem !important;
+  padding: 6px 14px !important;
   white-space: normal !important;
   height: auto !important;
   line-height: 1.4 !important;
+  transition: all 0.2s ease-in-out !important;
 }
 .chip-btn > button:hover {
   background-color: var(--accent) !important;
   color: #fff !important;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
 }
 
 /* ── Citation pill badges ── */
@@ -126,8 +155,8 @@ h1, h2, h3 { color: var(--primary) !important; }
   border-radius: 20px;
   font-size: 0.74rem;
   font-weight: 600;
-  padding: 0.14rem 0.62rem;
-  margin: 0.18rem 0.22rem 0 0;
+  padding: 4px 10px;
+  margin: 4px 4px 0 0;
   white-space: nowrap;
 }
 
@@ -140,8 +169,8 @@ h1, h2, h3 { color: var(--primary) !important; }
   border-radius: 20px;
   font-size: 0.74rem;
   font-weight: 700;
-  padding: 0.14rem 0.62rem;
-  margin-top: 0.18rem;
+  padding: 4px 10px;
+  margin-top: 4px;
   white-space: nowrap;
 }
 
@@ -149,12 +178,16 @@ h1, h2, h3 { color: var(--primary) !important; }
 .kb-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 0.7rem 0.9rem;
-  margin-bottom: 0.75rem;
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
   font-size: 0.82rem;
   line-height: 1.8;
   box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  transition: all 0.2s ease;
+}
+.kb-card:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
 }
 .kb-card b { color: var(--primary); }
 
@@ -164,42 +197,122 @@ h1, h2, h3 { color: var(--primary) !important; }
   max-height: 220px;
   object-fit: cover;
   border-radius: 12px;
-  margin-bottom: 0.5rem;
+  margin-bottom: 16px;
   box-shadow: 0 2px 10px rgba(0,0,0,0.10);
 }
 
 /* ── Selectbox, chat input ── */
 [data-testid="stSelectbox"] > div { border-radius: 8px !important; }
-[data-testid="stChatInput"] textarea { border-radius: 10px !important; }
+[data-testid="stChatInput"] textarea {
+  border-radius: 12px !important;
+  border: 1px solid var(--border) !important;
+}
 
-/* ── Cooldown message (rate limiting) ── */
+/* ── Custom alert boxes (replace st.error, st.warning, st.info) ── */
+.custom-error {
+  background: #fce8e8;
+  border: 1px solid var(--error);
+  border-left: 4px solid var(--error);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin: 16px 0;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+.custom-warning {
+  background: #fef5e7;
+  border: 1px solid var(--warning);
+  border-left: 4px solid var(--warning);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin: 16px 0;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+.custom-success {
+  background: #eaf7e6;
+  border: 1px solid var(--success);
+  border-left: 4px solid var(--success);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin: 16px 0;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+/* ── Cooldown message (rate limiting) — uses --warning ── */
 .cooldown-msg {
   background: #fef5e7;
   border: 1px solid var(--warning);
   border-left: 4px solid var(--warning);
   border-radius: 8px;
-  padding: 0.75rem 1rem;
-  margin: 0.5rem 0;
+  padding: 12px 16px;
+  margin: 16px 0;
   font-size: 0.9rem;
   color: var(--text);
 }
 
-/* ── Maintenance mode message ── */
+/* ── Maintenance mode message — uses --error ── */
 .maintenance-msg {
   background: #fce8e8;
   border: 1px solid var(--error);
   border-left: 4px solid var(--error);
-  border-radius: 8px;
-  padding: 2rem;
-  margin: 2rem 0;
+  border-radius: 12px;
+  padding: 32px;
+  margin: 32px 0;
   font-size: 1.1rem;
   text-align: center;
   color: var(--text);
 }
 
+/* ── Typing indicator (3 animated dots) ── */
+.typing-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 8px;
+  box-shadow: 0 1px 5px rgba(0,0,0,0.06);
+}
+.typing-dot {
+  width: 10px;
+  height: 10px;
+  background: var(--accent);
+  border-radius: 50%;
+  animation: typingPulse 1.4s infinite ease-in-out both;
+}
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes typingPulse {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  40% { transform: scale(1.0); opacity: 1.0; }
+}
+
+/* ── Admin panel sections ── */
+.admin-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  margin: 8px 0;
+}
+
 /* ── Hide default Streamlit chrome ── */
 #MainMenu, footer, header { visibility: hidden; }
-hr { border-color: var(--border) !important; margin: 0.5rem 0 !important; }
+hr {
+  border-color: var(--border) !important;
+  margin: 16px 0 !important;
+}
+
+/* ── Responsive narrow width ── */
+@media (max-width: 768px) {
+  .block-container { padding: 16px !important; }
+  [data-testid="stSidebar"] { padding: 16px 12px !important; }
+  .user-bubble, .bot-bubble { max-width: 100% !important; }
+}
 </style>
 """,
     unsafe_allow_html=True,
@@ -218,7 +331,7 @@ _MAINTENANCE_FLAG = Path(__file__).parent / "maintenance.flag"
 # ---------------------------------------------------------------------------
 # Load rag_core (cached).
 # ---------------------------------------------------------------------------
-@st.cache_resource(show_spinner="Loading knowledge base…")
+@st.cache_resource(show_spinner="Loading knowledge base\u2026")
 def _load_rag():
     try:
         from rag_core.retriever import retrieve, _get_collection
@@ -228,22 +341,29 @@ def _load_rag():
         try:
             col = _get_collection()
             n = col.count()
-            status = "✅ Ready" if n > 0 else "⚠️ Empty — run ingest.py"
+            status = "\u2705 Ready" if n > 0 else "\u26a0\ufe0f Empty \u2014 run ingest.py"
         except Exception:
-            n, status = 0, "❌ ChromaDB unreachable"
+            n, status = 0, "\u274c ChromaDB unreachable"
 
         return retrieve, generate, cfg, n, status
 
     except FileNotFoundError as e:
-        st.error(f"Configuration error:\n\n{e}")
+        st.markdown(
+            f"<div class='custom-error'>Configuration error:<br><br>{e}</div>",
+            unsafe_allow_html=True,
+        )
         st.stop()
     except EnvironmentError as e:
-        st.error(f"Environment error:\n\n{e}")
+        st.markdown(
+            f"<div class='custom-error'>Environment error:<br><br>{e}</div>",
+            unsafe_allow_html=True,
+        )
         st.stop()
     except ModuleNotFoundError as e:
-        st.error(
-            f"**Missing dependency:** `{e}`\n\n"
-            "Run `pip install -r requirements.txt` then restart Streamlit."
+        st.markdown(
+            f"<div class='custom-error'>**Missing dependency:** `{e}`<br><br>"
+            "Run `pip install -r requirements.txt` then restart Streamlit.</div>",
+            unsafe_allow_html=True,
         )
         st.stop()
 
@@ -274,14 +394,28 @@ if "session_id" not in st.session_state:
 def _render_badges(citations: list[str], refused: bool) -> None:
     if refused:
         st.markdown(
-            '<span class="refusal-pill">⛔ REFUSED — not in knowledge base</span>',
+            '<span class="refusal-pill">\u26d4 REFUSED \u2014 not in knowledge base</span>',
             unsafe_allow_html=True,
         )
     elif citations:
         pills = "".join(
-            f'<span class="citation-pill">📎 {c}</span>' for c in citations
+            f'<span class="citation-pill">\U0001f4ce {c}</span>' for c in citations
         )
         st.markdown(pills, unsafe_allow_html=True)
+
+
+# ---------------------------------------------------------------------------
+# Helper: show typing indicator placeholder
+# ---------------------------------------------------------------------------
+def _show_typing_indicator() -> None:
+    st.markdown(
+        '<div class="typing-indicator">'
+        '<span class="typing-dot"></span>'
+        '<span class="typing-dot"></span>'
+        '<span class="typing-dot"></span>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -306,29 +440,37 @@ with st.sidebar:
         st.image(str(LOGO_PATH), width=120)
     else:
         st.markdown(
-            "<h2 style='color:var(--primary);margin:0 0 0.4rem 0;font-size:1.15rem;'>"
-            "🎓 BVRIT</h2>",
+            "<h2 style='color:var(--primary);margin:0 0 8px 0;font-size:1.15rem;'>"
+            "\U0001f393 BVRIT</h2>",
             unsafe_allow_html=True,
         )
 
     st.markdown("---")
 
-    # Knowledge-base status card
+    # Knowledge-base status section
+    st.markdown(
+        '<div class="sidebar-section">\U0001f4da Knowledge Base</div>',
+        unsafe_allow_html=True,
+    )
     doc_name = Path(cfg.DOCX_PATH).name
     st.markdown(
         f"""
         <div class="kb-card">
           <b>Knowledge Base</b><br>
-          📄 {doc_name}<br>
-          🗂️ Chunks indexed: <b>{chunk_count}</b><br>
+          \U0001f4c4 {doc_name}<br>
+          \U0001f5c2\ufe0f Chunks indexed: <b>{chunk_count}</b><br>
           Status: {index_status}
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    # Retrieval settings
-    with st.expander("⚙️ Retrieval settings", expanded=False):
+    # Retrieval settings section
+    st.markdown(
+        '<div class="sidebar-section">\u2699\ufe0f Retrieval Settings</div>',
+        unsafe_allow_html=True,
+    )
+    with st.expander("Show settings", expanded=False):
         st.markdown(
             f"""
             <div style="font-size:0.82rem;line-height:1.95;color:var(--text);">
@@ -351,7 +493,7 @@ with st.sidebar:
         "Faculty", "Contact",
     ]
     section_filter: str = st.selectbox(
-        "🔍 Filter by section",
+        "\U0001f50d Filter by section",
         options=SECTION_OPTIONS,
         index=0,
         help="Restrict retrieval to a single document section.",
@@ -360,7 +502,7 @@ with st.sidebar:
     st.markdown("---")
 
     # Clear conversation
-    if st.button("🗑️ Clear conversation", use_container_width=True):
+    if st.button("\U0001f5d1\ufe0f Clear conversation", use_container_width=True):
         st.session_state.history = []
         st.session_state.pending_question = ""
         st.rerun()
@@ -369,7 +511,10 @@ with st.sidebar:
     # ADMIN PANEL — password-gated
     # -----------------------------------------------------------------------
     st.markdown("---")
-    st.markdown("### 🔐 Admin Panel")
+    st.markdown(
+        '<div class="sidebar-section">\U0001f510 Admin Panel</div>',
+        unsafe_allow_html=True,
+    )
 
     admin_password_input = st.text_input(
         "Admin password",
@@ -380,10 +525,13 @@ with st.sidebar:
 
     if admin_password_input:
         if _ADMIN_PASSWORD and admin_password_input == _ADMIN_PASSWORD:
-            st.success("Authenticated")
+            st.markdown(
+                '<div class="custom-success">Authenticated</div>',
+                unsafe_allow_html=True,
+            )
 
             # Download observability CSV
-            if st.button("📥 Download observability log as CSV", use_container_width=True):
+            if st.button("\U0001f4e5 Download observability log as CSV", use_container_width=True):
                 try:
                     from observability.logger import fetch_all
                     rows = fetch_all()
@@ -397,20 +545,26 @@ with st.sidebar:
                             for r in rows:
                                 writer.writerow(r.values())
                         st.download_button(
-                            label="📄 Click to download CSV",
+                            label="\U0001f4c4 Click to download CSV",
                             data=output.getvalue(),
                             file_name=f"observability_{time.strftime('%Y%m%d_%H%M%S')}.csv",
                             mime="text/csv",
                         )
                     else:
-                        st.info("No data in observability log yet.")
+                        st.markdown(
+                            '<div class="custom-warning">No data in observability log yet.</div>',
+                            unsafe_allow_html=True,
+                        )
                 except Exception as e:
-                    st.warning(f"Could not export CSV: {e}")
+                    st.markdown(
+                        f'<div class="custom-warning">Could not export CSV: {e}</div>',
+                        unsafe_allow_html=True,
+                    )
 
             # Maintenance mode toggle
             maintenance_enabled = _is_maintenance_mode()
             if st.checkbox(
-                "🔧 Maintenance mode",
+                "\U0001f527 Maintenance mode",
                 value=maintenance_enabled,
                 help="When enabled, the chat shows a static 'unavailable' message.",
             ):
@@ -425,13 +579,12 @@ with st.sidebar:
             if _is_maintenance_mode():
                 st.markdown(
                     '<p style="color:var(--error);font-size:0.85rem;">'
-                    "⚠️ Maintenance mode is **ON** — chat is disabled.</p>",
+                    "\u26a0\ufe0f Maintenance mode is **ON** \u2014 chat is disabled.</p>",
                     unsafe_allow_html=True,
                 )
         else:
             st.markdown(
-                '<p style="color:var(--error);font-size:0.85rem;">'
-                "❌ Incorrect password</p>",
+                '<div class="custom-error">\u274c Incorrect password</div>',
                 unsafe_allow_html=True,
             )
 
@@ -440,10 +593,9 @@ with st.sidebar:
 # CHECK: Maintenance mode — show static message and stop.
 # ---------------------------------------------------------------------------
 if _is_maintenance_mode():
-    # Clear any existing UI content
     st.markdown(
         "<div class='maintenance-msg'>"
-        "🛠️ **Temporarily Unavailable**<br><br>"
+        "\U0001f6e0\ufe0f **Temporarily Unavailable**<br><br>"
         "The BVRIT chatbot is currently undergoing maintenance. "
         "Please check back soon.<br><br>"
         "For urgent inquiries, contact BVRIT Hyderabad directly at "
@@ -471,7 +623,7 @@ if not st.session_state.history:
         st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown(
-        "<h1 style='color:var(--primary);margin-bottom:0.2rem;'>"
+        "<h1 style='color:var(--primary);margin-bottom:8px;'>"
         "Ask me anything about BVRIT</h1>"
         "<p style='color:var(--text);margin-top:0;font-size:0.95rem;'>"
         "Every answer is grounded in the official knowledge base "
@@ -480,7 +632,7 @@ if not st.session_state.history:
     )
 
     st.markdown(
-        "<p style='font-size:0.85rem;color:var(--text);margin-bottom:0.35rem;'>"
+        "<p style='font-size:0.85rem;color:var(--text);margin-bottom:8px;'>"
         "<b>Try asking:</b></p>",
         unsafe_allow_html=True,
     )
@@ -509,7 +661,7 @@ for turn in st.session_state.history:
 # ---------------------------------------------------------------------------
 # CHAT INPUT
 # ---------------------------------------------------------------------------
-user_input: str = st.chat_input("Ask a question about BVRIT…") or ""
+user_input: str = st.chat_input("Ask a question about BVRIT\u2026") or ""
 
 if st.session_state.pending_question and not user_input:
     user_input = st.session_state.pending_question
@@ -528,7 +680,7 @@ if user_input.strip():
     if not check_rate_limit():
         st.markdown(
             "<div class='cooldown-msg'>"
-            "⏳ **Slow down!** You've reached the maximum of 10 questions "
+            "\u23f3 **Slow down!** You've reached the maximum of 10 questions "
             "per 60 seconds. Please wait a moment before asking your next "
             "question."
             "</div>",
@@ -547,33 +699,47 @@ if user_input.strip():
 
     # Retrieve then generate
     with st.chat_message("assistant"):
-        with st.spinner("Searching knowledge base…"):
-            filter_value = None if section_filter == "All" else section_filter
-            try:
-                chunks = retrieve_fn(query, section_filter=filter_value)
-            except Exception as exc:
-                st.error(f"Retrieval failed: {exc}")
-                st.stop()
+        # Show typing indicator while waiting
+        typing_placeholder = st.empty()
+        with typing_placeholder:
+            _show_typing_indicator()
 
-        with st.spinner("Generating answer…"):
-            try:
-                result = generate_fn(
-                    query=query,
-                    chunks=chunks,
-                    history=st.session_state.history,
-                    session_id=session_id,
-                )
-            except Exception as exc:
-                # Log the error
-                log_event(
-                    session_id=session_id,
-                    question=redact_pii(query),
-                    dimension_or_tool="generation",
-                    model_name=cfg.GENERATION_MODEL,
-                    error=str(exc),
-                )
-                st.error(f"Generation failed: {exc}")
-                st.stop()
+        try:
+            filter_value = None if section_filter == "All" else section_filter
+            chunks = retrieve_fn(query, section_filter=filter_value)
+        except Exception as exc:
+            typing_placeholder.empty()
+            st.markdown(
+                f"<div class='custom-error'>Retrieval failed: {exc}</div>",
+                unsafe_allow_html=True,
+            )
+            st.stop()
+
+        try:
+            result = generate_fn(
+                query=query,
+                chunks=chunks,
+                history=st.session_state.history,
+                session_id=session_id,
+            )
+        except Exception as exc:
+            typing_placeholder.empty()
+            # Log the error
+            log_event(
+                session_id=session_id,
+                question=redact_pii(query),
+                dimension_or_tool="generation",
+                model_name=cfg.GENERATION_MODEL,
+                error=str(exc),
+            )
+            st.markdown(
+                f"<div class='custom-error'>Generation failed: {exc}</div>",
+                unsafe_allow_html=True,
+            )
+            st.stop()
+
+        # Clear typing indicator and show answer
+        typing_placeholder.empty()
 
         answer    = result["answer"]
         citations = result["citations"]
