@@ -17,6 +17,8 @@ from rag_core.config import (
     OPENROUTER_API_KEY,
     OPENROUTER_BASE_URL,
 )
+from governance.guardrails import is_advice_request
+from observability.logger import log_event
 
 
 # ---------------------------------------------------------------------------
@@ -127,10 +129,24 @@ def _is_refusal(answer: str) -> bool:
 # Public API
 # ---------------------------------------------------------------------------
 
+_ADVICE_DISCLAIMER = (
+    "I'm a college information assistant and I can only answer questions "
+    "about BVRIT Hyderabad based on the official knowledge base.\n\n"
+    "Your question appears to be seeking **medical, legal, or financial "
+    "advice**, which I'm not qualified to provide. For such matters, "
+    "please consult a qualified professional.\n\n"
+    "Here's how to reach BVRIT directly if you have college-related "
+    "concerns:\n"
+    "- **Phone:** +91-40-2304-2777\n"
+    "- **Email:** info@bvrithyderabad.edu.in\n"
+    "- **Website:** https://bvrithyderabad.edu.in"
+)
+
 def generate(
     query: str,
     chunks: list[dict],
     history: Optional[list[dict]] = None,
+    session_id: str = "",
 ) -> dict:
     """Call the generation LLM and return a structured result.
 
@@ -144,6 +160,8 @@ def generate(
         Conversation history as a list of ``{"role": "user"|"assistant",
         "content": "..."}`` dicts, oldest first.  Pass ``None`` or ``[]``
         for a fresh conversation.
+    session_id:
+        Session identifier for observability logging.
 
     Returns
     -------
@@ -153,6 +171,33 @@ def generate(
         ``refused``   — True if the LLM triggered the refusal instruction
         ``model``     — model name used for generation
     """
+    import time
+
+    from governance.guardrails import redact_pii
+
+    start_time = time.time()
+
+    # --- Advice check before calling LLM ---
+    if is_advice_request(query):
+        latency = time.time() - start_time
+        log_event(
+            session_id=session_id,
+            question=redact_pii(query),
+            dimension_or_tool="generation",
+            retrieved_chunk_ids=[c.get("id", "") for c in chunks],
+            model_name=GENERATION_MODEL,
+            input_tokens=0,
+            output_tokens=0,
+            latency_seconds=latency,
+            refused=True,
+        )
+        return {
+            "answer": _ADVICE_DISCLAIMER,
+            "citations": [],
+            "refused": True,
+            "model": GENERATION_MODEL,
+        }
+
     llm = _get_llm()
     context_block = _build_context_block(chunks)
 
@@ -179,6 +224,35 @@ def generate(
 
     answer, citations = _extract_citations(raw_answer)
     refused = _is_refusal(answer)
+
+    latency = time.time() - start_time
+
+    # Log the generation event to observability.
+    # Safely extract token counts from response usage_metadata.
+    try:
+        usage = response.usage_metadata if hasattr(response, "usage_metadata") else {}
+        in_tokens = getattr(usage, "input_tokens", usage.get("input_tokens", 0) if isinstance(usage, dict) else 0)
+        out_tokens = getattr(usage, "output_tokens", usage.get("output_tokens", 0) if isinstance(usage, dict) else 0)
+    except Exception:
+        in_tokens, out_tokens = 0, 0
+
+    chunk_ids = []
+    for c in chunks:
+        cid = c.get("id") or c.get("chunk_id") or c.get("metadata", {}).get("chunk_id", "")
+        if cid:
+            chunk_ids.append(str(cid))
+
+    log_event(
+        session_id=session_id,
+        question=redact_pii(query),
+        dimension_or_tool="generation",
+        retrieved_chunk_ids=chunk_ids,
+        model_name=GENERATION_MODEL,
+        input_tokens=in_tokens,
+        output_tokens=out_tokens,
+        latency_seconds=latency,
+        refused=refused,
+    )
 
     return {
         "answer": answer,

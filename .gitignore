@@ -4,3 +4,5 @@ __pycache__/
 .env
 chroma_db/
 .streamlit/secrets.toml
+observability.db
+maintenance.flag

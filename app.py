@@ -1,162 +1,26 @@
-import streamlit as st
-
-# Ensure this is the first Streamlit command in your script!
-st.set_page_config(layout="wide", initial_sidebar_state="auto")
-
-def inject_global_css():
-    st.markdown("""
-    <style>
-        /* 1. Global Light Theme Background & Text */
-        .stApp {
-            background-color: #F5F1EA !important;
-            color: #293241 !important;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        }
-        
-        /* 2. Sidebar Restyling */
-        [data-testid="stSidebar"] {
-            background-color: #EDE7DC !important;
-            border-right: 1px solid #E4E0D8;
-            padding: 24px 16px !important; /* 8px grid alignment */
-        }
-        
-        /* 3. Consistent 8px Spacing Grid for Cards, Blocks, and Chat Container */
-        .block-container {
-            padding-top: 32px !important;
-            padding-bottom: 32px !important;
-            padding-left: 24px !important;
-            padding-right: 24px !important;
-            gap: 16px !important;
-        }
-        
-        /* 4. Chat Bubbles Design System */
-        .user-bubble {
-            background-color: #98C1D9 !important; /* --accent */
-            color: #293241 !important;
-            padding: 16px;
-            border-radius: 12px 12px 0px 12px;
-            margin-bottom: 16px;
-            margin-left: auto;
-            max-width: 80%;
-            box-shadow: 0px 2px 4px rgba(0,0,0,0.05);
-            text-align: right;
-        }
-        
-        .bot-bubble {
-            background-color: #FFFFFF !important; /* --surface */
-            border: 1px solid #E4E0D8;
-            color: #293241 !important;
-            padding: 16px;
-            border-radius: 12px 12px 12px 0px;
-            margin-bottom: 16px;
-            max-width: 80%;
-            box-shadow: 0px 2px 4px rgba(0,0,0,0.05);
-        }
-
-        /* 5. Custom Citation and Refusal Badges */
-        .citation-badge {
-            display: inline-block;
-            background-color: rgba(152, 193, 217, 0.2); /* Tinted --accent */
-            color: #3D5A80 !important; /* --primary */
-            font-size: 0.75rem;
-            font-weight: bold;
-            padding: 4px 8px;
-            border-radius: 8px;
-            margin: 4px 4px 4px 0px;
-            border: 1px solid #98C1D9;
-        }
-        
-        .refused-badge {
-            display: inline-block;
-            background-color: rgba(188, 71, 73, 0.1);
-            color: #BC4749 !important; /* --error */
-            font-size: 0.75rem;
-            font-weight: bold;
-            padding: 4px 8px;
-            border-radius: 8px;
-            border: 1px solid #BC4749;
-            margin-bottom: 8px;
-        }
-
-        /* 6. Subtle Micro-interactions & Hover States */
-        div.stButton > button {
-            background-color: #3D5A80 !important; /* --primary */
-            color: #FFFFFF !important;
-            border-radius: 8px !important;
-            border: none !important;
-            padding: 8px 16px !important;
-            transition: all 0.2s ease-in-out !important;
-        }
-        
-        div.stButton > button:hover {
-            background-color: #293241 !important;
-            transform: translateY(-1px);
-            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
-        }
-
-        /* Question chips hover styling */
-        .question-chip {
-            background-color: #FFFFFF;
-            border: 1px solid #E4E0D8;
-            padding: 8px 16px;
-            border-radius: 20px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            margin: 4px;
-            display: inline-block;
-        }
-        .question-chip:hover {
-            background-color: rgba(152, 193, 217, 0.15) !important;
-            border-color: #98C1D9;
-            transform: scale(1.02);
-        }
-
-        /* 7. Typing Indicator Animation */
-        .typing-indicator {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            padding: 8px;
-        }
-        .typing-dot {
-            width: 8px;
-            height: 8px;
-            background-color: #98C1D9;
-            border-radius: 50%;
-            animation: pulse 1.4s infinite ease-in-out both;
-        }
-        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
-        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
-        @keyframes pulse {
-            0%, 80%, 100% { transform: scale(0); }
-            40% { transform: scale(1.0); }
-        }
-        
-        /* 8. Mobile Breakpoint Fallback Adjustments */
-        @media (max-width: 768px) {
-            .user-bubble, .bot-bubble { max-width: 100% !important; }
-            .block-container { padding: 16px !important; }
-        }
-    </style>
-    """, unsafe_html=True)
-
-inject_global_css()
 """
 app.py — BVRIT RAG Chatbot · Streamlit UI
 Light theme per spec.md section 7. Reuses rag_core.retriever + rag_core.generation.
+
+Includes governance (PII redaction, rate limiting, advice detection), observability
+logging, and an admin panel with maintenance mode.
+
 Run:  streamlit run app.py
 """
 
 from __future__ import annotations
 
+import csv
+import io
+import os
 import sys
+import time
+import uuid
 from pathlib import Path
 
 import streamlit as st
 
-# ---------------------------------------------------------------------------
 # Page config — must be the FIRST Streamlit call.
-# ---------------------------------------------------------------------------
 st.set_page_config(
     page_title="BVRIT Chatbot",
     page_icon="🎓",
@@ -166,7 +30,6 @@ st.set_page_config(
 
 # ---------------------------------------------------------------------------
 # CSS — spec.md section 7 color tokens, full light theme.
-# All colors come from the token table; nothing is hardcoded elsewhere.
 # ---------------------------------------------------------------------------
 st.markdown(
     """
@@ -309,6 +172,31 @@ h1, h2, h3 { color: var(--primary) !important; }
 [data-testid="stSelectbox"] > div { border-radius: 8px !important; }
 [data-testid="stChatInput"] textarea { border-radius: 10px !important; }
 
+/* ── Cooldown message (rate limiting) ── */
+.cooldown-msg {
+  background: #fef5e7;
+  border: 1px solid var(--warning);
+  border-left: 4px solid var(--warning);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin: 0.5rem 0;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+/* ── Maintenance mode message ── */
+.maintenance-msg {
+  background: #fce8e8;
+  border: 1px solid var(--error);
+  border-left: 4px solid var(--error);
+  border-radius: 8px;
+  padding: 2rem;
+  margin: 2rem 0;
+  font-size: 1.1rem;
+  text-align: center;
+  color: var(--text);
+}
+
 /* ── Hide default Streamlit chrome ── */
 #MainMenu, footer, header { visibility: hidden; }
 hr { border-color: var(--border) !important; margin: 0.5rem 0 !important; }
@@ -318,19 +206,20 @@ hr { border-color: var(--border) !important; margin: 0.5rem 0 !important; }
 )
 
 # ---------------------------------------------------------------------------
-# Asset paths — all accesses guarded with .exists() so missing files never crash.
+# Asset paths
 # ---------------------------------------------------------------------------
 _ASSETS = Path(__file__).parent / "assets" / "images"
-LOGO_PATH        = _ASSETS / "logo.png"
-CAMPUS_PATH      = _ASSETS / "campus.jpg"
-FACILITIES_PATH  = _ASSETS / "facilities.jpg"
+LOGO_PATH   = _ASSETS / "logo.png"
+CAMPUS_PATH = _ASSETS / "campus.jpg"
+
+# Maintenance mode flag file path.
+_MAINTENANCE_FLAG = Path(__file__).parent / "maintenance.flag"
 
 # ---------------------------------------------------------------------------
-# Load rag_core (cached — runs once per Streamlit server process).
+# Load rag_core (cached).
 # ---------------------------------------------------------------------------
 @st.cache_resource(show_spinner="Loading knowledge base…")
 def _load_rag():
-    """Import rag_core modules and return (retrieve_fn, generate_fn, cfg, chunk_count, status)."""
     try:
         from rag_core.retriever import retrieve, _get_collection
         from rag_core.generation import generate
@@ -362,6 +251,11 @@ def _load_rag():
 retrieve_fn, generate_fn, cfg, chunk_count, index_status = _load_rag()
 
 # ---------------------------------------------------------------------------
+# Load admin password from env (never hardcoded in code, never logged).
+# ---------------------------------------------------------------------------
+_ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
+
+# ---------------------------------------------------------------------------
 # Session-state initialisation
 # ---------------------------------------------------------------------------
 if "history" not in st.session_state:
@@ -370,13 +264,14 @@ if "history" not in st.session_state:
 if "pending_question" not in st.session_state:
     st.session_state.pending_question: str = ""
 
+if "session_id" not in st.session_state:
+    st.session_state.session_id: str = str(uuid.uuid4())
+
 
 # ---------------------------------------------------------------------------
-# Helper: render citation pills or refusal badge
-# (defined before any rendering loop so forward-reference is impossible)
+# Helper: render badges
 # ---------------------------------------------------------------------------
 def _render_badges(citations: list[str], refused: bool) -> None:
-    """Emit citation pill badges or a refusal badge below an answer."""
     if refused:
         st.markdown(
             '<span class="refusal-pill">⛔ REFUSED — not in knowledge base</span>',
@@ -390,10 +285,23 @@ def _render_badges(citations: list[str], refused: bool) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Helper: check maintenance mode
+# ---------------------------------------------------------------------------
+def _is_maintenance_mode() -> bool:
+    return _MAINTENANCE_FLAG.exists()
+
+
+def _set_maintenance_mode(enabled: bool) -> None:
+    if enabled:
+        _MAINTENANCE_FLAG.touch()
+    else:
+        _MAINTENANCE_FLAG.unlink(missing_ok=True)
+
+
+# ---------------------------------------------------------------------------
 # SIDEBAR
 # ---------------------------------------------------------------------------
 with st.sidebar:
-    # Logo (optional)
     if LOGO_PATH.exists():
         st.image(str(LOGO_PATH), width=120)
     else:
@@ -419,7 +327,7 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
 
-    # Retrieval settings — read-only display
+    # Retrieval settings
     with st.expander("⚙️ Retrieval settings", expanded=False):
         st.markdown(
             f"""
@@ -436,17 +344,11 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # Section filter dropdown
+    # Section filter
     SECTION_OPTIONS = [
-        "All",
-        "About BVRIT",
-        "Departments",
-        "Admissions",
-        "Fee Structure",
-        "Placements",
-        "Campus & Facilities",
-        "Faculty",
-        "Contact",
+        "All", "About BVRIT", "Departments", "Admissions",
+        "Fee Structure", "Placements", "Campus & Facilities",
+        "Faculty", "Contact",
     ]
     section_filter: str = st.selectbox(
         "🔍 Filter by section",
@@ -457,15 +359,103 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # Clear conversation button
+    # Clear conversation
     if st.button("🗑️ Clear conversation", use_container_width=True):
         st.session_state.history = []
         st.session_state.pending_question = ""
         st.rerun()
 
+    # -----------------------------------------------------------------------
+    # ADMIN PANEL — password-gated
+    # -----------------------------------------------------------------------
+    st.markdown("---")
+    st.markdown("### 🔐 Admin Panel")
+
+    admin_password_input = st.text_input(
+        "Admin password",
+        type="password",
+        placeholder="Enter password",
+        label_visibility="collapsed",
+    )
+
+    if admin_password_input:
+        if _ADMIN_PASSWORD and admin_password_input == _ADMIN_PASSWORD:
+            st.success("Authenticated")
+
+            # Download observability CSV
+            if st.button("📥 Download observability log as CSV", use_container_width=True):
+                try:
+                    from observability.logger import fetch_all
+                    rows = fetch_all()
+                    if rows:
+                        import csv as _csv
+                        import io as _io
+                        output = _io.StringIO()
+                        writer = _csv.writer(output)
+                        if rows:
+                            writer.writerow(rows[0].keys())
+                            for r in rows:
+                                writer.writerow(r.values())
+                        st.download_button(
+                            label="📄 Click to download CSV",
+                            data=output.getvalue(),
+                            file_name=f"observability_{time.strftime('%Y%m%d_%H%M%S')}.csv",
+                            mime="text/csv",
+                        )
+                    else:
+                        st.info("No data in observability log yet.")
+                except Exception as e:
+                    st.warning(f"Could not export CSV: {e}")
+
+            # Maintenance mode toggle
+            maintenance_enabled = _is_maintenance_mode()
+            if st.checkbox(
+                "🔧 Maintenance mode",
+                value=maintenance_enabled,
+                help="When enabled, the chat shows a static 'unavailable' message.",
+            ):
+                if not maintenance_enabled:
+                    _set_maintenance_mode(True)
+                    st.rerun()
+            else:
+                if maintenance_enabled:
+                    _set_maintenance_mode(False)
+                    st.rerun()
+
+            if _is_maintenance_mode():
+                st.markdown(
+                    '<p style="color:var(--error);font-size:0.85rem;">'
+                    "⚠️ Maintenance mode is **ON** — chat is disabled.</p>",
+                    unsafe_allow_html=True,
+                )
+        else:
+            st.markdown(
+                '<p style="color:var(--error);font-size:0.85rem;">'
+                "❌ Incorrect password</p>",
+                unsafe_allow_html=True,
+            )
+
 
 # ---------------------------------------------------------------------------
-# MAIN AREA — welcome screen (visible only when history is empty)
+# CHECK: Maintenance mode — show static message and stop.
+# ---------------------------------------------------------------------------
+if _is_maintenance_mode():
+    # Clear any existing UI content
+    st.markdown(
+        "<div class='maintenance-msg'>"
+        "🛠️ **Temporarily Unavailable**<br><br>"
+        "The BVRIT chatbot is currently undergoing maintenance. "
+        "Please check back soon.<br><br>"
+        "For urgent inquiries, contact BVRIT Hyderabad directly at "
+        "<b>info@bvrithyderabad.edu.in</b> or <b>+91-40-2304-2777</b>."
+        "</div>",
+        unsafe_allow_html=True,
+    )
+    st.stop()
+
+
+# ---------------------------------------------------------------------------
+# MAIN AREA — welcome screen
 # ---------------------------------------------------------------------------
 EXAMPLE_QUESTIONS = [
     "What departments does BVRIT offer?",
@@ -475,7 +465,6 @@ EXAMPLE_QUESTIONS = [
 ]
 
 if not st.session_state.history:
-    # Campus banner image (optional)
     if CAMPUS_PATH.exists():
         st.markdown('<div class="welcome-img-wrap">', unsafe_allow_html=True)
         st.image(str(CAMPUS_PATH), use_container_width=True)
@@ -486,11 +475,10 @@ if not st.session_state.history:
         "Ask me anything about BVRIT</h1>"
         "<p style='color:var(--text);margin-top:0;font-size:0.95rem;'>"
         "Every answer is grounded in the official knowledge base "
-        "with section &amp; page citations.</p>",
+        "with section & page citations.</p>",
         unsafe_allow_html=True,
     )
 
-    # Example question chips
     st.markdown(
         "<p style='font-size:0.85rem;color:var(--text);margin-bottom:0.35rem;'>"
         "<b>Try asking:</b></p>",
@@ -509,7 +497,7 @@ if not st.session_state.history:
 
 
 # ---------------------------------------------------------------------------
-# CHAT HISTORY — render all prior turns
+# CHAT HISTORY — render prior turns
 # ---------------------------------------------------------------------------
 for turn in st.session_state.history:
     with st.chat_message(turn["role"]):
@@ -519,7 +507,7 @@ for turn in st.session_state.history:
 
 
 # ---------------------------------------------------------------------------
-# CHAT INPUT — pick up new question or chip injection
+# CHAT INPUT
 # ---------------------------------------------------------------------------
 user_input: str = st.chat_input("Ask a question about BVRIT…") or ""
 
@@ -527,11 +515,31 @@ if st.session_state.pending_question and not user_input:
     user_input = st.session_state.pending_question
     st.session_state.pending_question = ""
 
+
 # ---------------------------------------------------------------------------
 # PROCESS NEW QUESTION
 # ---------------------------------------------------------------------------
 if user_input.strip():
     query = user_input.strip()
+
+    # --- RATE LIMITING CHECK ---
+    from governance.guardrails import check_rate_limit, redact_pii
+
+    if not check_rate_limit():
+        st.markdown(
+            "<div class='cooldown-msg'>"
+            "⏳ **Slow down!** You've reached the maximum of 10 questions "
+            "per 60 seconds. Please wait a moment before asking your next "
+            "question."
+            "</div>",
+            unsafe_allow_html=True,
+        )
+        st.stop()
+
+    # --- LOG the query to observability (before retrieval) ---
+    from observability.logger import log_event
+
+    session_id = st.session_state.session_id
 
     # Immediately show the user's message
     with st.chat_message("user"):
@@ -553,8 +561,17 @@ if user_input.strip():
                     query=query,
                     chunks=chunks,
                     history=st.session_state.history,
+                    session_id=session_id,
                 )
             except Exception as exc:
+                # Log the error
+                log_event(
+                    session_id=session_id,
+                    question=redact_pii(query),
+                    dimension_or_tool="generation",
+                    model_name=cfg.GENERATION_MODEL,
+                    error=str(exc),
+                )
                 st.error(f"Generation failed: {exc}")
                 st.stop()
 
@@ -565,8 +582,9 @@ if user_input.strip():
         st.markdown(answer)
         _render_badges(citations, refused)
 
-    # Persist both turns to history
-    st.session_state.history.append({"role": "user", "content": query})
+    # Persist both turns to history (redact PII before storing)
+    redacted_query = redact_pii(query)
+    st.session_state.history.append({"role": "user", "content": redacted_query})
     st.session_state.history.append(
         {
             "role": "assistant",

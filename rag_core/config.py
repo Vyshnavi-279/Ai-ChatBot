@@ -87,6 +87,11 @@ CHROMA_COLLECTION_NAME: str = os.environ.get(
 DOCX_PATH: str = os.environ.get("DOCX_PATH", "data/college_info.docx")
 
 # ---------------------------------------------------------------------------
+# Admin / Governance
+# ---------------------------------------------------------------------------
+ADMIN_PASSWORD: str = os.environ.get("ADMIN_PASSWORD", "admin123")
+
+# ---------------------------------------------------------------------------
 # The eight canonical section headings (used by retriever metadata filter)
 # ---------------------------------------------------------------------------
 SECTION_HEADINGS: list[str] = [

@@ -12,10 +12,10 @@ def retrieve(query, section_filter=None, top_k=None):
     return _retrieve(query, **kwargs)
 
 
-def generate(query, chunks, history=None):
+def generate(query, chunks, history=None, session_id=""):
     """Lazy wrapper — delegates to generation.generate()."""
     from rag_core.generation import generate as _generate
-    return _generate(query, chunks, history=history)
+    return _generate(query, chunks, history=history, session_id=session_id)
 
 
 __all__ = ["retrieve", "generate"]

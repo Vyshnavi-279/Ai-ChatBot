@@ -1,0 +1,1 @@
+# observability package — logging, dashboard, and admin utilities.
